@@ -1,7 +1,9 @@
 name: ios-unsigned-ipa
 
-# 版本 3：换到 Intel 的 Mac 机器池（macos-15-intel），它和 arm64 那批是分开排队的。
-# 覆盖 .github/workflows/ios-unsigned-ipa.yml，然后 Actions 里重新运行作业。
+# 版本 4：修 Xcode 太旧导致的编译错。
+# 报错：connectivity_plus-7.3.2 里用了 NWPath.isUltraConstrained，那是 iOS 26 SDK 才有的 API，
+# 而这台 Intel Mac 上的 Xcode 是 16 系，所以编译失败。办法是把 connectivity_plus 钉回旧版本。
+# 覆盖 .github/workflows/ios-unsigned-ipa.yml，再跑一次。
 
 on:
   workflow_dispatch:
@@ -10,6 +12,10 @@ on:
         description: '把本机引擎一起打进去（约 160MB；只要遥控电脑就填 no）'
         required: false
         default: 'no'
+      conn_version:
+        description: 'connectivity_plus 用哪个版本（默认 6.1.4，最稳）'
+        required: false
+        default: '6.1.4'
 
 jobs:
   build:
@@ -25,15 +31,32 @@ jobs:
       - name: 环境探底
         run: |
           uname -m || true
-          sw_vers || true
           xcodebuild -version || true
-          python3 --version || true
 
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
           channel: stable
           cache: true
+
+      - name: 把 connectivity_plus 钉到旧版本
+        working-directory: app
+        run: |
+          python3 - "${{ inputs.conn_version }}" <<'PY'
+          import sys
+          ver = sys.argv[1]
+          p = 'pubspec.yaml'
+          s = open(p, encoding='utf-8').read()
+          line = f'  connectivity_plus: {ver}\n'
+          if 'dependency_overrides:' in s:
+              head, tail = s.split('dependency_overrides:', 1)
+              body = tail.split('\nsettings:', 1)
+              s = head + 'dependency_overrides:\n' + line + body[0].lstrip('\n') + ('\nsettings:' + body[1] if len(body) > 1 else '')
+          else:
+              s = s + '\ndependency_overrides:\n' + line
+          open(p, 'w', encoding='utf-8').write(s)
+          print(s[-400:])
+          PY
 
       - name: 准备本机引擎（可选）
         if: ${{ inputs.with_engine == 'yes' }}
