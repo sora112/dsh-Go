@@ -1,41 +1,38 @@
 name: ios-unsigned-ipa
 
-# 用 GitHub 的云 Mac 编出一份“未签名 ipa”，下载回来后用你自己的证书重签安装。
-# 用法：把 dsh-Go fork 到自己账号 -> 把这个文件放到 .github/workflows/ 下 -> Actions 里手动 Run workflow
-# 不需要 Apple 账号、不需要 Mac、不花一分钱。
+# 版本 2：把 runner 从 macos-26 换成 macos-15（池子大，容易派到机器），并允许重试。
+# 用它覆盖仓库里 .github/workflows/ios-unsigned-ipa.yml，然后重新跑一次。
 
 on:
   workflow_dispatch:
     inputs:
       with_engine:
-        description: '把本机引擎一起打进去（160MB 左右，编得慢；只要遥控电脑就填 no）'
+        description: '把本机引擎一起打进去（约 160MB，编得慢；只要遥控电脑就填 no）'
         required: false
         default: 'no'
 
 jobs:
   build:
-    # Xcode 26 需要较新的 runner；macos-26 不可用时改成 macos-15 并确认 Xcode 版本
-    runs-on: macos-26
+    runs-on: macos-15
     timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 1
 
-      - name: 看看 Xcode 版本
+      - name: 环境探底
         run: |
+          sw_vers || true
           xcodebuild -version || true
-          ls /Applications | grep -i Xcode || true
+          python3 --version || true
 
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
           channel: stable
           cache: true
-
-      - name: Python（prepare-engine 要 3.11+）
-        run: python3 --version
 
       - name: 准备本机引擎（可选）
         if: ${{ inputs.with_engine == 'yes' }}
@@ -63,7 +60,9 @@ jobs:
           ls -lh out/
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: dsh-go-unsigned-ipa
-          path: out/dsh-go-unsigned.ipa
+          path: out/dsh-go-unsigned-ipa
+          if-no-files-found: warn
           retention-days: 7
