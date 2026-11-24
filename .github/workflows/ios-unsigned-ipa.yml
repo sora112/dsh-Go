@@ -1,0 +1,69 @@
+name: ios-unsigned-ipa
+
+# 用 GitHub 的云 Mac 编出一份“未签名 ipa”，下载回来后用你自己的证书重签安装。
+# 用法：把 dsh-Go fork 到自己账号 -> 把这个文件放到 .github/workflows/ 下 -> Actions 里手动 Run workflow
+# 不需要 Apple 账号、不需要 Mac、不花一分钱。
+
+on:
+  workflow_dispatch:
+    inputs:
+      with_engine:
+        description: '把本机引擎一起打进去（160MB 左右，编得慢；只要遥控电脑就填 no）'
+        required: false
+        default: 'no'
+
+jobs:
+  build:
+    # Xcode 26 需要较新的 runner；macos-26 不可用时改成 macos-15 并确认 Xcode 版本
+    runs-on: macos-26
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: 看看 Xcode 版本
+        run: |
+          xcodebuild -version || true
+          ls /Applications | grep -i Xcode || true
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+
+      - name: Python（prepare-engine 要 3.11+）
+        run: python3 --version
+
+      - name: 准备本机引擎（可选）
+        if: ${{ inputs.with_engine == 'yes' }}
+        run: |
+          chmod +x tooling/ios/prepare-engine.sh
+          tooling/ios/prepare-engine.sh
+
+      - name: 装依赖
+        working-directory: app
+        run: flutter pub get
+
+      - name: 编 iOS（不签名）
+        working-directory: app
+        run: |
+          flutter build ios --release --no-codesign
+
+      - name: 打成 ipa
+        run: |
+          set -e
+          APP_DIR="app/build/ios/iphoneos"
+          ls -la "$APP_DIR"
+          rm -rf Payload out && mkdir -p Payload out
+          cp -R "$APP_DIR/Runner.app" Payload/
+          zip -qry "out/dsh-go-unsigned.ipa" Payload
+          ls -lh out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-go-unsigned-ipa
+          path: out/dsh-go-unsigned.ipa
+          retention-days: 7
