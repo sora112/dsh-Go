@@ -1,19 +1,19 @@
 name: ios-unsigned-ipa
 
-# 版本 2：把 runner 从 macos-26 换成 macos-15（池子大，容易派到机器），并允许重试。
-# 用它覆盖仓库里 .github/workflows/ios-unsigned-ipa.yml，然后重新跑一次。
+# 版本 3：换到 Intel 的 Mac 机器池（macos-15-intel），它和 arm64 那批是分开排队的。
+# 覆盖 .github/workflows/ios-unsigned-ipa.yml，然后 Actions 里重新运行作业。
 
 on:
   workflow_dispatch:
     inputs:
       with_engine:
-        description: '把本机引擎一起打进去（约 160MB，编得慢；只要遥控电脑就填 no）'
+        description: '把本机引擎一起打进去（约 160MB；只要遥控电脑就填 no）'
         required: false
         default: 'no'
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 120
 
     steps:
@@ -24,6 +24,7 @@ jobs:
 
       - name: 环境探底
         run: |
+          uname -m || true
           sw_vers || true
           xcodebuild -version || true
           python3 --version || true
