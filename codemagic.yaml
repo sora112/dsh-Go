@@ -38,15 +38,20 @@ workflows:
           set -e
           cd app
           flutter build ios --release --no-codesign --config-only
-          cd ios
-          pod install --repo-update || pod install
+          ls -la ios | head -30
+          test -d ios/Runner.xcodeproj || { echo "没有 Runner.xcodeproj"; exit 1; }
 
       - name: 编 iOS（关掉签名直接 xcodebuild）
         script: |
           set -e
           cd app/ios
-          xcodebuild \
-            -workspace Runner.xcworkspace \
+          if [ -d Runner.xcworkspace ]; then
+            TARGET="-workspace Runner.xcworkspace"
+          else
+            TARGET="-project Runner.xcodeproj"
+          fi
+          echo "xcodebuild $TARGET"
+          xcodebuild $TARGET \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
