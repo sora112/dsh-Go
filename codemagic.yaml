@@ -6,31 +6,53 @@ workflows:
     environment:
       flutter: 3.47.7
       xcode: latest
-      cocoapods: default
       vars:
-        APP_DIR: app
+        # 要手机自带引擎就 yes；只想遥控电脑就 no
+        WITH_ENGINE: "yes"
     scripts:
       - name: 看一下环境
         script: |
-          xcodebuild -version || true
-          flutter --version || true
+          set -e
+          uname -sm
+          sw_vers -productVersion
+          flutter --version | head -2
+
       - name: 装依赖
         script: |
-          cd "$APP_DIR"
+          set -e
+          cd app
           flutter pub get
+
+      - name: 准备本机引擎
+        script: |
+          set -e
+          if [ "${WITH_ENGINE}" != "yes" ]; then
+            echo "WITH_ENGINE=${WITH_ENGINE}，跳过引擎"
+            exit 0
+          fi
+          brew install python@3.11
+          export PYTHON="$(brew --prefix python@3.11)/bin/python3.11"
+          "$PYTHON" --version
+          bash tooling/ios/prepare-engine.sh
+          ls -la app/ios/Engine | head -20
+
       - name: 编 iOS（不签名）
         script: |
-          cd "$APP_DIR"
+          set -e
+          cd app
           flutter build ios --release --no-codesign
+
       - name: 打成 ipa
         script: |
           set -e
-          cd "$APP_DIR/build/ios/iphoneos"
-          ls -la
-          rm -rf Payload
-          mkdir -p Payload
-          cp -R Runner.app Payload/
-          zip -qry dsh-go-unsigned.ipa Payload
+          APP=$(find app/build/ios/iphoneos -maxdepth 1 -name "*.app" | head -1)
+          echo "app: $APP"
+          test -n "$APP"
+          rm -rf build/ipa
+          mkdir -p build/ipa/Payload
+          cp -R "$APP" build/ipa/Payload/
+          (cd build/ipa && zip -qry ../../dsh-go-unsigned.ipa Payload)
           ls -lh dsh-go-unsigned.ipa
+
     artifacts:
-      - app/build/ios/iphoneos/dsh-go-unsigned.ipa
+      - dsh-go-unsigned.ipa
