@@ -38,12 +38,14 @@ workflows:
           set -e
           cd app
           flutter build ios --release --no-codesign --config-only
-          ls -la ios | head -30
           test -d ios/Runner.xcodeproj || { echo "没有 Runner.xcodeproj"; exit 1; }
 
       - name: 编 iOS（关掉签名直接 xcodebuild）
         script: |
           set -e
+          brew install llvm lld meson ninja
+          export PATH="$(brew --prefix llvm)/bin:$(brew --prefix lld)/bin:$PATH"
+          which ld.lld meson ninja || true
           cd app/ios
           if [ -d Runner.xcworkspace ]; then
             TARGET="-workspace Runner.xcworkspace"
