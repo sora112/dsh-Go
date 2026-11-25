@@ -2,20 +2,17 @@ workflows:
   ios-unsigned:
     name: iOS 未签名 ipa
     instance_type: mac_mini_m2
-    max_build_duration: 120
+    max_build_duration: 150
     environment:
       flutter: 3.47.7
       xcode: latest
       vars:
-        # 要手机自带引擎就 yes；只想遥控电脑就 no
         WITH_ENGINE: "yes"
     scripts:
       - name: 看一下环境
         script: |
           set -e
-          uname -sm
-          sw_vers -productVersion
-          flutter --version | head -2
+          uname -sm; sw_vers -productVersion; flutter --version | head -2
 
       - name: 装依赖
         script: |
@@ -36,18 +33,37 @@ workflows:
           bash tooling/ios/prepare-engine.sh
           ls -la app/ios/Engine | head -20
 
-      - name: 编 iOS（不签名）
+      - name: 生成工程
         script: |
           set -e
           cd app
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign --config-only
+          cd ios
+          pod install --repo-update || pod install
+
+      - name: 编 iOS（关掉签名直接 xcodebuild）
+        script: |
+          set -e
+          cd app/ios
+          xcodebuild \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath ../build/dd \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            DEVELOPMENT_TEAM="" \
+            build
 
       - name: 打成 ipa
         script: |
           set -e
-          APP=$(find app/build/ios/iphoneos -maxdepth 1 -name "*.app" | head -1)
+          APP="app/build/dd/Build/Products/Release-iphoneos/Runner.app"
           echo "app: $APP"
-          test -n "$APP"
+          test -d "$APP"
           rm -rf build/ipa
           mkdir -p build/ipa/Payload
           cp -R "$APP" build/ipa/Payload/
