@@ -11,7 +11,7 @@ on:
       with_engine:
         description: '把本机引擎一起打进去（约 160MB；只要遥控电脑就填 no）'
         required: false
-        default: 'no'
+        default: 'yes'
       conn_version:
         description: 'connectivity_plus 用哪个版本（默认 6.1.4，最稳）'
         required: false
